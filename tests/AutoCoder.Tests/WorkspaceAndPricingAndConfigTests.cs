@@ -46,9 +46,9 @@ public sealed class WorkspaceAndPricingAndConfigTests
     {
         var path = FindRepoFile(Path.Combine("config", "enterprise.yml"));
         var options = AutoCoderConfigLoader.Load(path);
-        Assert.Equal(5m, options.Limits.MaxUsdPerRun);
-        Assert.Equal(500_000, options.Limits.MaxTokensPerRun);
-        Assert.Equal(40, options.Limits.MaxToolCalls);
+        Assert.Equal(8m, options.Limits.MaxUsdPerRun);
+        Assert.Equal(800_000, options.Limits.MaxTokensPerRun);
+        Assert.Equal(60, options.Limits.MaxToolCalls);
         Assert.Equal(2, options.Limits.MaxConcurrentRuns);
         Assert.True(options.Pipelines.TryGetValue("fix-bug", out var pipe));
         Assert.True(pipe.RequireBuild);
@@ -60,6 +60,8 @@ public sealed class WorkspaceAndPricingAndConfigTests
         Assert.Equal("deepseek", options.Agents["default"].Costly?.Type);
         Assert.Equal("deepseek-v4-pro", options.Agents["default"].Costly?.Model);
         Assert.Equal("/app/runs", options.Webhooks.ArtifactsDirectory);
+        Assert.True(options.Retrieval.Enabled);
+        Assert.Equal("memory", options.Retrieval.Backend);
     }
 
     [Fact]

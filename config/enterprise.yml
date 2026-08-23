@@ -140,11 +140,30 @@ poll:
   jql: 'status = "AssignedToAgent"'
 
 limits:
-  max_usd_per_run: 5
-  max_tokens_per_run: 500000
-  max_tool_calls: 40
+  max_usd_per_run: 8
+  max_tokens_per_run: 800000
+  max_tool_calls: 60
   max_concurrent_runs: 2
   one_live_run_per_ticket: true
+
+# AutoCoderPro (item 11): retrieval-based navigation. memory backend works offline;
+# set backend: qdrant + AUTOCODER_QDRANT_URL (or QDRANT_URL) on the estate VM.
+retrieval:
+  enabled: true
+  backend: memory
+  qdrant_url: http://qdrant:6333
+  collection: autocoderpro-code
+  embedder: deterministic
+  embedding_model: text-embedding-3-small
+  top_k: 8
+  large_repo_file_threshold: 40
+  max_files_to_index: 5000
+  max_chunk_chars: 4000
+
+# Optional MCP servers (stdio). Off until you add allowlisted commands.
+mcp:
+  enabled: false
+  servers: []
 
 resilience:
   max_attempts: 3

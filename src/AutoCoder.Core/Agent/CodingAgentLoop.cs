@@ -3,6 +3,8 @@ using AutoCoder.Abstractions;
 using AutoCoder.Abstractions.Config;
 using AutoCoder.Core.Llm;
 using AutoCoder.Core.Logging;
+using AutoCoder.Core.Mcp;
+using AutoCoder.Core.Retrieval;
 using AutoCoder.Core.Runs;
 
 namespace AutoCoder.Core.Agent;
@@ -115,7 +117,8 @@ public sealed class CodingAgentLoop
             HTML/JS file that contains it — do not recreate the same content in README.md.
             Workspace is a git checkout. Paths are relative to the repo root.
             Never run shell. Never write under .git or .autocoder/.
-            Use list_files, grep, read_file to understand the repo, then write_file with complete file contents.
+            Prefer search_code (semantic retrieval) to find the right files in large repos before grepping blindly.
+            Use list_files, search_code, grep, read_file to understand the repo, then write_file with complete file contents.
             Add or update tests when the repo has a test project.
             When the change is complete, call finish.
             """;
@@ -224,7 +227,7 @@ public sealed class CodingAgentLoop
                     }
                 });
 
-                var result = Execute(context, tools, call.FunctionName!, call.FunctionArgs ?? "{}", turn);
+                var result = await ExecuteAsync(context, tools, call.FunctionName!, call.FunctionArgs ?? "{}", turn, cancellationToken);
                 if (call.FunctionName == "finish")
                 {
                     finished = true;
@@ -307,7 +310,7 @@ public sealed class CodingAgentLoop
                     type = "function",
                     function = new { name = call.FunctionName, arguments = call.FunctionArgs ?? "{}" }
                 });
-                var result = Execute(context, tools, call.FunctionName!, call.FunctionArgs ?? "{}", turn);
+                var result = await ExecuteAsync(context, tools, call.FunctionName!, call.FunctionArgs ?? "{}", turn, cancellationToken);
                 if (call.FunctionName == "finish")
                 {
                     finished = true;
@@ -367,7 +370,13 @@ public sealed class CodingAgentLoop
         return "bug fix";
     }
 
-    private static string Execute(PipelineContext context, WorkspaceTools tools, string name, string argsJson, int turn)
+    private static async Task<string> ExecuteAsync(
+        PipelineContext context,
+        WorkspaceTools tools,
+        string name,
+        string argsJson,
+        int turn,
+        CancellationToken cancellationToken)
     {
         RunBudget.Current?.AddToolCalls(1);
         using var args = JsonDocument.Parse(string.IsNullOrWhiteSpace(argsJson) ? "{}" : argsJson);
@@ -384,6 +393,26 @@ public sealed class CodingAgentLoop
             "agent.tool",
             context,
             fields: [("tool", name), ("path", path), ("turn", turn), ("toolCalls", context.Spend.ToolCalls)]);
+
+        if (name.Equals("search_code", StringComparison.OrdinalIgnoreCase))
+        {
+            var service = CodeIndexAmbient.Service;
+            var work = CodeIndexAmbient.WorkDirectory ?? context.WorkDirectory;
+            if (service is null || string.IsNullOrWhiteSpace(work) || !context.RetrievalReady)
+                return "search_code unavailable (retrieval not indexed for this run). Use grep/list_files instead.";
+            return await service.SearchAsync(work, S("query"), cancellationToken: cancellationToken);
+        }
+
+        if (name.StartsWith("mcp_", StringComparison.OrdinalIgnoreCase))
+        {
+            var catalog = McpAmbient.Catalog;
+            if (catalog is null)
+                return "MCP is not connected for this run.";
+            var mcpArgs = S("arguments_json");
+            if (string.IsNullOrWhiteSpace(mcpArgs))
+                mcpArgs = argsJson;
+            return await catalog.CallAsync(name, mcpArgs, cancellationToken);
+        }
 
         return name switch
         {

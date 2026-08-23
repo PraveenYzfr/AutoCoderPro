@@ -64,6 +64,10 @@ public sealed class PipelineContext
     public string? RunningStatus { get; set; }
     /// <summary>Status to revert a transiently-failed ticket to so the poller picks it up again.</summary>
     public string? RetryStatus { get; set; }
+    /// <summary>Commit SHA the code index was built for (AutoCoderPro retrieval).</summary>
+    public string? IndexedCommitSha { get; set; }
+    public int IndexedChunkCount { get; set; }
+    public bool RetrievalReady { get; set; }
     public int ProductFilesChanged { get; set; }
     public bool BuildSucceeded { get; set; }
     public bool TestsSucceeded { get; set; }

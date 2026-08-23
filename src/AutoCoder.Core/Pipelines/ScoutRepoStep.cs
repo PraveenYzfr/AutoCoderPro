@@ -1,5 +1,7 @@
 using AutoCoder.Abstractions;
+using AutoCoder.Abstractions.Config;
 using AutoCoder.Core.Agent;
+using AutoCoder.Core.Retrieval;
 
 namespace AutoCoder.Core.Pipelines;
 
@@ -36,10 +38,10 @@ public sealed class ExtractTicketStep : IPipelineStep
 }
 
 /// <summary>
-/// Cheap model reads the cloned repo and writes a briefing for Claude.
-/// Stack, layout, likely files — not an implementation plan.
+/// Cheap model reads the cloned repo and writes a briefing for the planner.
+/// AutoCoderPro: when retrieval is ready, prefer semantic hits over a flat file dump (item 11).
 /// </summary>
-public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
+public sealed class ScoutRepoStep(ILlmProvider llm, AutoCoderOptions? options = null) : IPipelineStep
 {
     public string Name => "ScoutRepo";
 
@@ -56,7 +58,7 @@ public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
         }
 
         var tools = new WorkspaceTools(work);
-        var facts = GatherFacts(work, tools, ticket);
+        var facts = await GatherFactsAsync(context, work, tools, ticket, cancellationToken);
         var response = await llm.CompleteAsync(new LlmRequest
         {
             ModelRole = "scout",
@@ -71,6 +73,8 @@ public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
                         Report only what the files show: tech stack, project layout, test projects,
                         and which paths likely relate to the ticket. Quote real relative paths.
                         Do not write an implementation plan. Do not invent files that are not listed.
+                        When retrieval hits are present, treat them as the primary signal for which
+                        files matter — prefer those paths over guessing from the tree alone.
                         """
                 },
                 new LlmMessage
@@ -80,7 +84,7 @@ public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
                         Ticket:
                         {context.TicketBrief}
 
-                        Repo facts (from disk):
+                        Repo facts (from disk / retrieval):
                         {facts}
                         """
                 }
@@ -99,7 +103,8 @@ public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
         Console.WriteLine($"[{Name}] Scout ready ({response.PromptTokens}+{response.CompletionTokens} tokens).");
     }
 
-    private static string GatherFacts(string work, WorkspaceTools tools, Ticket ticket)
+    private async Task<string> GatherFactsAsync(
+        PipelineContext context, string work, WorkspaceTools tools, Ticket ticket, CancellationToken cancellationToken)
     {
         var tree = tools.ListTree(250);
         var named = new[]
@@ -136,6 +141,20 @@ public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
             greps.Add($"grep '{term}':\n{Truncate(hits, 1_500)}");
         }
 
+        var retrievalBlock = "(retrieval off or not ready)";
+        var service = CodeIndexAmbient.Service;
+        var threshold = options?.Retrieval.LargeRepoFileThreshold ?? 40;
+        if (context.RetrievalReady && service is not null)
+        {
+            var fileCount = service.CountIndexableFiles(work);
+            if (fileCount >= threshold || context.IndexedChunkCount > 0)
+            {
+                var ticketText = $"{ticket.Summary}\n{ticket.Description}";
+                retrievalBlock = await service.ScoutContextAsync(work, ticketText, cancellationToken);
+                Console.WriteLine($"[{Name}] Retrieval context for scout ({fileCount} indexable files).");
+            }
+        }
+
         return $"""
             File tree:
             {tree}
@@ -145,6 +164,9 @@ public sealed class ScoutRepoStep(ILlmProvider llm) : IPipelineStep
 
             Keyword hits:
             {(greps.Count == 0 ? "(none)" : string.Join("\n\n", greps))}
+
+            Retrieval hits (prefer these paths when present):
+            {retrievalBlock}
             """;
     }
 

@@ -120,6 +120,27 @@ public static class AutoCoderConfigLoader
         if (int.TryParse(retryDelay, out var baseDelayMs))
             options.Resilience.BaseDelayMs = baseDelayMs;
 
+        var retrieval = Environment.GetEnvironmentVariable("AUTOCODER_RETRIEVAL_ENABLED");
+        if (bool.TryParse(retrieval, out var retrievalEnabled))
+            options.Retrieval.Enabled = retrievalEnabled;
+
+        var retrievalBackend = Environment.GetEnvironmentVariable("AUTOCODER_RETRIEVAL_BACKEND");
+        if (!string.IsNullOrWhiteSpace(retrievalBackend))
+            options.Retrieval.Backend = retrievalBackend.Trim();
+
+        var qdrant = Environment.GetEnvironmentVariable("AUTOCODER_QDRANT_URL")
+                     ?? Environment.GetEnvironmentVariable("QDRANT_URL");
+        if (!string.IsNullOrWhiteSpace(qdrant))
+            options.Retrieval.QdrantUrl = qdrant.Trim();
+
+        var embedder = Environment.GetEnvironmentVariable("AUTOCODER_EMBEDDER");
+        if (!string.IsNullOrWhiteSpace(embedder))
+            options.Retrieval.Embedder = embedder.Trim();
+
+        var mcp = Environment.GetEnvironmentVariable("AUTOCODER_MCP_ENABLED");
+        if (bool.TryParse(mcp, out var mcpEnabled))
+            options.Mcp.Enabled = mcpEnabled;
+
         ApplyLlmOverlays(options);
     }
 

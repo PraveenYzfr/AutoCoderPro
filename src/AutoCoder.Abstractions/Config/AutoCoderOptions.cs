@@ -13,8 +13,48 @@ public sealed class AutoCoderOptions
     public PollOptions Poll { get; set; } = new();
     public LimitsOptions Limits { get; set; } = new();
     public ResilienceOptions Resilience { get; set; } = new();
+    /// <summary>AutoCoderPro: code RAG (chunk + index + search_code). Off by default until configured.</summary>
+    public RetrievalOptions Retrieval { get; set; } = new();
+    /// <summary>AutoCoderPro: optional MCP servers whose tools merge into the coding agent.</summary>
+    public McpOptions Mcp { get; set; } = new();
     public Dictionary<string, PipelineOptions> Pipelines { get; set; } = new(StringComparer.OrdinalIgnoreCase);
     public Dictionary<string, string> Secrets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+}
+
+/// <summary>Large-repo navigation via retrieval instead of linear open/grep (item 11).</summary>
+public sealed class RetrievalOptions
+{
+    public bool Enabled { get; set; }
+    /// <summary>qdrant | memory. memory = lexical index (no embeddings/Qdrant required).</summary>
+    public string Backend { get; set; } = "memory";
+    public string QdrantUrl { get; set; } = "http://qdrant:6333";
+    public string Collection { get; set; } = "autocoderpro-code";
+    /// <summary>openai | deterministic. openai needs OPENAI_API_KEY or EMBEDDING_API_KEY.</summary>
+    public string Embedder { get; set; } = "deterministic";
+    public string EmbeddingModel { get; set; } = "text-embedding-3-small";
+    public string? EmbeddingEndpoint { get; set; }
+    public int TopK { get; set; } = 8;
+    /// <summary>Repos with at least this many indexable files use retrieval in scout.</summary>
+    public int LargeRepoFileThreshold { get; set; } = 40;
+    public int MaxFilesToIndex { get; set; } = 5_000;
+    public int MaxChunkChars { get; set; } = 4_000;
+}
+
+public sealed class McpOptions
+{
+    public bool Enabled { get; set; }
+    /// <summary>Allowlisted MCP servers (stdio). Tools are prefixed mcp_&lt;server&gt;_.</summary>
+    public List<McpServerOptions> Servers { get; set; } = [];
+}
+
+public sealed class McpServerOptions
+{
+    public string Name { get; set; } = "";
+    /// <summary>stdio command to launch (e.g. npx).</summary>
+    public string Command { get; set; } = "";
+    public List<string> Args { get; set; } = [];
+    /// <summary>When true, tools are read-only context helpers (never mutate product git).</summary>
+    public bool ReadOnly { get; set; } = true;
 }
 
 public sealed class TriggersOptions
@@ -135,12 +175,12 @@ public sealed class PollOptions
     public string Jql { get; set; } = "status = \"AssignedToAgent\"";
 }
 
-/// <summary>Per-run and process caps. 0 on a numeric cap means unlimited.</summary>
+/// <summary>Per-run and process caps. 0 on a numeric cap means unlimited. Pro defaults are higher than AutoCoder.</summary>
 public sealed class LimitsOptions
 {
-    public decimal MaxUsdPerRun { get; set; } = 5;
-    public int MaxTokensPerRun { get; set; } = 500_000;
-    public int MaxToolCalls { get; set; } = 40;
+    public decimal MaxUsdPerRun { get; set; } = 8;
+    public int MaxTokensPerRun { get; set; } = 800_000;
+    public int MaxToolCalls { get; set; } = 60;
     public int MaxConcurrentRuns { get; set; } = 2;
     public bool OneLiveRunPerTicket { get; set; } = true;
 }

@@ -103,11 +103,22 @@ poll:
   jql: 'status = "AssignedToAgent"'
 
 limits:
-  max_usd_per_run: 5
-  max_tokens_per_run: 500000
-  max_tool_calls: 40
+  max_usd_per_run: 8
+  max_tokens_per_run: 800000
+  max_tool_calls: 60
   max_concurrent_runs: 2
   one_live_run_per_ticket: true
+
+retrieval:
+  enabled: true
+  backend: memory
+  embedder: deterministic
+  top_k: 8
+  large_repo_file_threshold: 40
+
+mcp:
+  enabled: false
+  servers: []
 
 resilience:
   max_attempts: 3

@@ -47,7 +47,7 @@ internal sealed class OpenAiToolClient
             ["messages"] = all,
             ["temperature"] = 0.2,
             ["max_tokens"] = 8192,
-            ["tools"] = ToolDefs()
+            ["tools"] = AgentToolSchema.OpenAiToolDefs()
         };
         if (_baseUrl.Contains("deepseek", StringComparison.OrdinalIgnoreCase))
         {
@@ -110,42 +110,5 @@ internal sealed class OpenAiToolClient
         return new GeminiTurn { Parts = parts, Raw = raw };
     }
 
-    private static object[] ToolDefs() =>
-    [
-        Tool("list_files", "List files and folders relative to the repo root.",
-            ("path", "Relative directory. Use empty or '.' for root.", false)),
-        Tool("read_file", "Read a text file relative to the repo root.",
-            ("path", "Relative file path", true)),
-        Tool("write_file", "Create or overwrite a text file. Use this to implement the fix or feature.",
-            ("path", "Relative file path", true),
-            ("content", "Full file contents", true)),
-        Tool("grep", "Search file contents for a string (case-insensitive).",
-            ("pattern", "Text to find", true),
-            ("path", "Relative file or directory to search", false)),
-        Tool("finish", "Call when the code change is complete. Do not call until files are written.",
-            ("summary", "What you changed and why", true))
-    ];
-
-    private static object Tool(string name, string description, params (string Name, string Description, bool Required)[] props)
-    {
-        var properties = new Dictionary<string, object>();
-        var required = new List<string>();
-        foreach (var p in props)
-        {
-            properties[p.Name] = new { type = "string", description = p.Description };
-            if (p.Required)
-                required.Add(p.Name);
-        }
-
-        return new
-        {
-            type = "function",
-            function = new
-            {
-                name,
-                description,
-                parameters = new { type = "object", properties, required }
-            }
-        };
-    }
+    // Tool schemas live in AgentToolSchema (includes Pro search_code + MCP).
 }

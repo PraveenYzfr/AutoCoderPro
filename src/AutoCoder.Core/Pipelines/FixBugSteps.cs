@@ -3,6 +3,7 @@ using AutoCoder.Abstractions;
 using AutoCoder.Abstractions.Config;
 using AutoCoder.Core.Agent;
 using AutoCoder.Core.Config;
+using AutoCoder.Core.Mcp;
 using AutoCoder.Core.Runs;
 
 namespace AutoCoder.Core.Pipelines;
@@ -193,7 +194,19 @@ public sealed class AgenticImplementStep(AutoCoderOptions options) : IPipelineSt
             return;
         }
 
-        await new CodingAgentLoop(options).RunAsync(context, cancellationToken);
+        await using var mcp = options.Mcp.Enabled
+            ? await McpToolCatalog.ConnectAsync(options.Mcp, cancellationToken)
+            : null;
+        McpAmbient.Set(mcp);
+        try
+        {
+            await new CodingAgentLoop(options).RunAsync(context, cancellationToken);
+        }
+        finally
+        {
+            McpAmbient.Set(null);
+        }
+
         await File.WriteAllTextAsync(
             Path.Combine(runDir, "agent-summary.md"),
             context.AgentSummary ?? "",
