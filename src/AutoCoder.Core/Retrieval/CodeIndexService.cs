@@ -146,21 +146,51 @@ public sealed class CodeIndexService
 
     private static IEmbedder CreateEmbedder(RetrievalOptions r)
     {
-        var kind = (r.Embedder ?? "deterministic").Trim().ToLowerInvariant();
+        var kind = (r.Embedder ?? "gemini").Trim().ToLowerInvariant();
+        var dims = r.EmbeddingDimensions > 0 ? r.EmbeddingDimensions : 768;
+
+        if (kind is "deterministic" or "hash" or "local")
+            return new DeterministicEmbedder(dims <= 1024 ? dims : 384);
+
         if (kind is "openai" or "openai-compatible")
         {
             var key = Environment.GetEnvironmentVariable("EMBEDDING_API_KEY")
                       ?? Environment.GetEnvironmentVariable("OPENAI_API_KEY");
-            if (!string.IsNullOrWhiteSpace(key))
+            if (string.IsNullOrWhiteSpace(key))
             {
-                return new OpenAiEmbedder(
-                    key,
-                    string.IsNullOrWhiteSpace(r.EmbeddingModel) ? "text-embedding-3-small" : r.EmbeddingModel,
-                    r.EmbeddingEndpoint);
+                throw new InvalidOperationException(
+                    "retrieval.embedder=openai requires OPENAI_API_KEY or EMBEDDING_API_KEY. "
+                    + "Refusing to silently fall back to deterministic embeddings.");
             }
-            Console.WriteLine("[retrieval] No EMBEDDING_API_KEY/OPENAI_API_KEY; using deterministic embedder.");
+
+            return new OpenAiEmbedder(
+                key,
+                string.IsNullOrWhiteSpace(r.EmbeddingModel) ? "text-embedding-3-small" : r.EmbeddingModel,
+                r.EmbeddingEndpoint,
+                dimensions: dims > 0 ? dims : 1536);
         }
-        return new DeterministicEmbedder();
+
+        // Default / gemini / google — estate cost path (not OpenAI).
+        if (kind is "gemini" or "google" or "")
+        {
+            var key = Environment.GetEnvironmentVariable("GEMINI_API_KEY")
+                      ?? Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+            if (string.IsNullOrWhiteSpace(key))
+            {
+                throw new InvalidOperationException(
+                    "retrieval.embedder=gemini requires GEMINI_API_KEY (or GOOGLE_API_KEY). "
+                    + "Refusing to silently fall back to deterministic embeddings — set embedder: deterministic "
+                    + "only if you deliberately want the lightweight local mode.");
+            }
+
+            return new GeminiEmbedder(
+                key,
+                string.IsNullOrWhiteSpace(r.EmbeddingModel) ? "gemini-embedding-001" : r.EmbeddingModel,
+                dims);
+        }
+
+        throw new InvalidOperationException(
+            $"Unknown retrieval.embedder '{r.Embedder}'. Use gemini, openai, or deterministic.");
     }
 
     private static async Task<string?> ReadCommitShaAsync(string workDirectory, CancellationToken cancellationToken)

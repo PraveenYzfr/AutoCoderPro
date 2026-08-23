@@ -1,11 +1,19 @@
-# Laptop / local. Binds 8081 on loopback only.
-# VM: use docker-compose.vm.yml (joins Claude's hub network, no public publish).
+# Laptop / local. Defaults match production retrieval (qdrant + gemini) so bugs
+# that only show up against the real stack are reachable here too.
+# Lightweight opt-in: set AUTOCODER_RETRIEVAL_BACKEND=memory and embedder: deterministic.
 
-name: autocoder
+name: autocoderpro
 
 services:
+  qdrant:
+    image: qdrant/qdrant:v1.13.2
+    ports:
+      - "127.0.0.1:6333:6333"
+    volumes:
+      - qdrant_data:/qdrant/storage
+
   orchestrator:
-    image: autocoder/orchestrator:dev
+    image: autocoderpro/orchestrator:dev
     build:
       context: .
       dockerfile: Dockerfile
@@ -19,9 +27,17 @@ services:
       AUTOCODER_TRIGGERS_MODE: both
       AUTOCODER_WEBHOOKS_DRY_RUN: "true"
       AUTOCODER_SANDBOX: docker
+      AUTOCODER_QDRANT_URL: http://qdrant:6333
+      AUTOCODER_RETRIEVAL_BACKEND: qdrant
+      AUTOCODER_EMBEDDER: gemini
+    depends_on:
+      - qdrant
     volumes:
       - ./config/autocoder.yml:/app/config/autocoder.yml:ro
       - ./runs:/app/runs
       - /var/run/docker.sock:/var/run/docker.sock
     extra_hosts:
       - "host.docker.internal:host-gateway"
+
+volumes:
+  qdrant_data:

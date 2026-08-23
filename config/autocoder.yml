@@ -111,8 +111,11 @@ limits:
 
 retrieval:
   enabled: true
-  backend: memory
-  embedder: deterministic
+  backend: qdrant
+  qdrant_url: http://qdrant:6333
+  embedder: gemini
+  embedding_model: gemini-embedding-001
+  embedding_dimensions: 768
   top_k: 8
   large_repo_file_threshold: 40
 

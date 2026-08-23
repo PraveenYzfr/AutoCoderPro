@@ -2,52 +2,45 @@
 
 > Large-repo Autocoding: **Jira → index → plan → code → PR**, with **RAG + MCP**.
 
-Forked from [AutoCoder](https://github.com/PraveenYzfr/AutoCoder). AutoCoder stays the proven small-repo orchestrator; **Pro is the future** — retrieval navigation and MCP tools live here only.
+Forked from [AutoCoder](https://github.com/PraveenYzfr/AutoCoder). AutoCoder stays frozen at current capability; **Pro is the future**.
 
 | | |
 |--|--|
-| Status | Item 11 baseline landed — retrieval on by default (`memory` backend) |
-| Stack | .NET 8+ orchestrator (C#) |
-| Retrieval | Function/class chunking → memory or Qdrant index → `search_code` tool |
-| MCP | Optional stdio servers; tools merge as `mcp_<server>_<tool>` |
-| Estate | Qdrant already on the VM — set `retrieval.backend: qdrant` + `AUTOCODER_QDRANT_URL` |
+| Status | Item 11 — retrieval defaults match production |
+| Default retrieval | **qdrant + gemini** (`gemini-embedding-001`, **768 dims**) |
+| Lightweight opt-in | `backend: memory` + `embedder: deterministic` only when you ask for it |
+| LLM cost order | DeepSeek → Groq (OpenAI/Anthropic/Gemini chat = benchmark only) |
+| Embedding cost | **Gemini** (not OpenAI) — same family SeekandDestroy/B already uses |
 
-## What changed vs AutoCoder
+## Why defaults are qdrant + gemini
 
-1. **`IndexRepo` step** after clone — chunks on function/class boundaries (imports stay with the first unit), indexed by commit SHA.
-2. **Scout** prefers retrieval hits over a flat file dump when the repo is large enough.
-3. **Coding agent** gets `search_code` so it finds files by meaning instead of opening them one at a time.
-4. **MCP scaffold** — allowlisted stdio servers; read-only context tools only (clone/commit/PR stay hand-rolled).
-5. Slightly higher Pro limits (60 tool calls / 800k tokens) — retrieval should still make tool use *more efficient*, not just bigger.
+Running `memory` + `deterministic` locally while the VM used qdrant + a real embedder is the same class of bug that cost SeekandDestroy (mock LLM shipping, clear-without-recreate invisible in-memory, 3072-dim upsert blowups). Local defaults to the production stack so those failures are reachable before deploy. Missing `GEMINI_API_KEY` **fails the index step loudly** — it does **not** silently fall back to deterministic.
 
 ## Config
 
 ```yaml
 retrieval:
   enabled: true
-  backend: memory          # or qdrant
+  backend: qdrant
   qdrant_url: http://qdrant:6333
-  embedder: deterministic  # or openai (+ EMBEDDING_API_KEY / OPENAI_API_KEY)
+  embedder: gemini
+  embedding_model: gemini-embedding-001
+  embedding_dimensions: 768   # not 3072 — keeps upserts small
   top_k: 8
-  large_repo_file_threshold: 40
-
-mcp:
-  enabled: false
-  servers: []
-  # - name: github
-  #   command: npx
-  #   args: ["-y", "@modelcontextprotocol/server-github"]
-  #   read_only: true
 ```
 
-Env overlays: `AUTOCODER_RETRIEVAL_ENABLED`, `AUTOCODER_RETRIEVAL_BACKEND`, `AUTOCODER_QDRANT_URL` / `QDRANT_URL`, `AUTOCODER_EMBEDDER`, `AUTOCODER_MCP_ENABLED`.
+Env: `GEMINI_API_KEY`, `AUTOCODER_QDRANT_URL` / `QDRANT_URL`, optional `AUTOCODER_RETRIEVAL_BACKEND`, `AUTOCODER_EMBEDDER`.
 
-## Quick start
+## Local compose
 
-```bash
-dotnet run --project src/AutoCoder.Cli -- dry-run --ticket samples/ticket.json
-dotnet test
-```
+`docker compose up` starts **qdrant + orchestrator** together. Set `GEMINI_API_KEY` in `.env`.
+
+## Pipeline extras vs AutoCoder
+
+1. `IndexRepo` after clone (commit-SHA keyed; Qdrant delete always followed by recreate; dim mismatch recreates).
+2. Scout prefers retrieval hits on large repos.
+3. Coding agent `search_code` tool.
+4. Optional MCP stdio tools as `mcp_*`.
 
 ## License
 

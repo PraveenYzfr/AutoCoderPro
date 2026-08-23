@@ -21,18 +21,28 @@ public sealed class AutoCoderOptions
     public Dictionary<string, string> Secrets { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
-/// <summary>Large-repo navigation via retrieval instead of linear open/grep (item 11).</summary>
+/// <summary>
+/// Large-repo navigation via retrieval (item 11).
+/// Defaults match production (qdrant + gemini) so local cannot silently diverge into a mock path —
+/// set backend=memory / embedder=deterministic only when you deliberately want the lightweight mode.
+/// </summary>
 public sealed class RetrievalOptions
 {
-    public bool Enabled { get; set; }
-    /// <summary>qdrant | memory. memory = lexical index (no embeddings/Qdrant required).</summary>
-    public string Backend { get; set; } = "memory";
+    public bool Enabled { get; set; } = true;
+    /// <summary>qdrant (default, prod) | memory (explicit lightweight opt-in).</summary>
+    public string Backend { get; set; } = "qdrant";
     public string QdrantUrl { get; set; } = "http://qdrant:6333";
     public string Collection { get; set; } = "autocoderpro-code";
-    /// <summary>openai | deterministic. openai needs OPENAI_API_KEY or EMBEDDING_API_KEY.</summary>
-    public string Embedder { get; set; } = "deterministic";
-    public string EmbeddingModel { get; set; } = "text-embedding-3-small";
+    /// <summary>
+    /// gemini (default, estate cost path) | openai (benchmark only) | deterministic (explicit lightweight).
+    /// Never auto-fall back from gemini/openai to deterministic — that is how mocks ship.
+    /// </summary>
+    public string Embedder { get; set; } = "gemini";
+    /// <summary>Default gemini-embedding-001. Prefer 768 dims — full 3072 blows upsert payloads.</summary>
+    public string EmbeddingModel { get; set; } = "gemini-embedding-001";
     public string? EmbeddingEndpoint { get; set; }
+    /// <summary>Gemini outputDimensionality. Keep 768 unless you know you need more.</summary>
+    public int EmbeddingDimensions { get; set; } = 768;
     public int TopK { get; set; } = 8;
     /// <summary>Repos with at least this many indexable files use retrieval in scout.</summary>
     public int LargeRepoFileThreshold { get; set; } = 40;

@@ -146,15 +146,16 @@ limits:
   max_concurrent_runs: 2
   one_live_run_per_ticket: true
 
-# AutoCoderPro (item 11): retrieval-based navigation. memory backend works offline;
-# set backend: qdrant + AUTOCODER_QDRANT_URL (or QDRANT_URL) on the estate VM.
+# AutoCoderPro (item 11): defaults match production so local cannot silently diverge.
+# Lightweight opt-in only: backend=memory + embedder=deterministic.
 retrieval:
   enabled: true
-  backend: memory
+  backend: qdrant
   qdrant_url: http://qdrant:6333
   collection: autocoderpro-code
-  embedder: deterministic
-  embedding_model: text-embedding-3-small
+  embedder: gemini
+  embedding_model: gemini-embedding-001
+  embedding_dimensions: 768
   top_k: 8
   large_repo_file_threshold: 40
   max_files_to_index: 5000

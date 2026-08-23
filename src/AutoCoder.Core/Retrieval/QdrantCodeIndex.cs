@@ -111,7 +111,19 @@ public sealed class QdrantCodeIndex : ICodeIndex, IDisposable
     {
         using var get = await _http.GetAsync($"collections/{Uri.EscapeDataString(collection)}", cancellationToken);
         if (get.IsSuccessStatusCode)
-            return;
+        {
+            var raw = await get.Content.ReadAsStringAsync(cancellationToken);
+            if (TryReadVectorSize(raw, out var existing) && existing != _embedder.Dimensions)
+            {
+                Console.WriteLine(
+                    $"[qdrant] Collection '{collection}' has size={existing}, embedder wants {_embedder.Dimensions} — recreating.");
+                await DeleteCollectionAsync(collection, cancellationToken);
+            }
+            else
+            {
+                return;
+            }
+        }
 
         using var create = await _http.PutAsJsonAsync(
             $"collections/{Uri.EscapeDataString(collection)}",
@@ -131,6 +143,38 @@ public sealed class QdrantCodeIndex : ICodeIndex, IDisposable
     {
         using var del = await _http.DeleteAsync($"collections/{Uri.EscapeDataString(collection)}", cancellationToken);
         // 404 is fine — collection did not exist yet.
+        // After delete we always EnsureCollection again (caller) so clear-without-recreate cannot stick.
+    }
+
+    private static bool TryReadVectorSize(string collectionJson, out int size)
+    {
+        size = 0;
+        try
+        {
+            using var doc = JsonDocument.Parse(collectionJson);
+            if (!doc.RootElement.TryGetProperty("result", out var result))
+                return false;
+            if (!result.TryGetProperty("config", out var config))
+                return false;
+            if (!config.TryGetProperty("params", out var parameters))
+                return false;
+            if (!parameters.TryGetProperty("vectors", out var vectors))
+                return false;
+            // Single unnamed vector: { "size": 768, "distance": "Cosine" }
+            if (vectors.TryGetProperty("size", out var sizeEl) && sizeEl.TryGetInt32(out size))
+                return true;
+            // Named vectors map — take the first.
+            foreach (var prop in vectors.EnumerateObject())
+            {
+                if (prop.Value.TryGetProperty("size", out var n) && n.TryGetInt32(out size))
+                    return true;
+            }
+        }
+        catch
+        {
+            return false;
+        }
+        return false;
     }
 
     private static ulong StableId(string chunkId)

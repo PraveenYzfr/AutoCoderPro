@@ -27,31 +27,33 @@ public sealed class IndexRepoStep(AutoCoderOptions options) : IPipelineStep
         }
 
         var work = context.WorkDirectory ?? throw new InvalidOperationException("WorkDirectory required.");
-        var service = CodeIndexService.TryCreate(options);
-        if (service is null)
-        {
-            Console.WriteLine($"[{Name}] Could not create index service.");
-            return;
-        }
-
-        CodeIndexAmbient.Set(service, work);
-        context.Items["codeIndex"] = service;
-
         try
         {
+            var service = CodeIndexService.TryCreate(options);
+            if (service is null)
+            {
+                Console.WriteLine($"[{Name}] Could not create index service.");
+                return;
+            }
+
+            CodeIndexAmbient.Set(service, work);
+            context.Items["codeIndex"] = service;
+
             var (chunks, commit) = await service.IndexWorkspaceAsync(work, cancellationToken);
             context.IndexedChunkCount = chunks;
             context.IndexedCommitSha = commit;
             context.RetrievalReady = chunks > 0;
             Console.WriteLine(
                 $"[{Name}] Indexed {chunks} chunk(s) at {commit[..Math.Min(12, commit.Length)]} "
-                + $"backend={service.Backend} embedder={service.Embedder}.");
+                + $"backend={service.Backend} embedder={service.Embedder} dims-aware.");
         }
         catch (Exception ex)
         {
-            // Retrieval is an accelerator — never fail the whole run if Qdrant is briefly down.
+            // Retrieval is an accelerator — never fail the whole run if Qdrant/Gemini is briefly down.
+            // But we never silently substitute deterministic embeddings; that error surfaces here instead.
             Console.Error.WriteLine($"[{Name}] Index failed (continuing without retrieval): {ex.Message}");
             context.RetrievalReady = false;
+            CodeIndexAmbient.Set(null, null);
         }
     }
 }

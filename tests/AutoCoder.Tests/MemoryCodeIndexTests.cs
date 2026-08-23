@@ -3,6 +3,7 @@ using AutoCoder.Core.Retrieval;
 
 namespace AutoCoder.Tests;
 
+[Collection(ProcessEnvStateCollection.Name)]
 public sealed class MemoryCodeIndexTests
 {
     [Fact]
@@ -71,13 +72,40 @@ public sealed class MemoryCodeIndexTests
     }
 
     [Fact]
-    public void TryCreate_returns_memory_backend_when_enabled()
+    public void TryCreate_returns_qdrant_backend_when_enabled_with_explicit_deterministic_embedder_for_unit_tests()
     {
+        // Unit tests do not hit live Gemini; use deterministic only when explicitly asked.
         var options = new AutoCoderOptions();
         options.Retrieval.Enabled = true;
         options.Retrieval.Backend = "memory";
+        options.Retrieval.Embedder = "deterministic";
         var service = CodeIndexService.TryCreate(options);
         Assert.NotNull(service);
         Assert.Equal("memory", service!.Backend);
+        Assert.Equal("deterministic", service.Embedder);
+    }
+
+    [Fact]
+    public void Gemini_embedder_without_key_throws_instead_of_silently_using_deterministic()
+    {
+        var prevG = Environment.GetEnvironmentVariable("GEMINI_API_KEY");
+        var prevO = Environment.GetEnvironmentVariable("GOOGLE_API_KEY");
+        try
+        {
+            Environment.SetEnvironmentVariable("GEMINI_API_KEY", null);
+            Environment.SetEnvironmentVariable("GOOGLE_API_KEY", null);
+            var options = new AutoCoderOptions();
+            options.Retrieval.Enabled = true;
+            options.Retrieval.Backend = "memory";
+            options.Retrieval.Embedder = "gemini";
+            var ex = Assert.Throws<InvalidOperationException>(() => CodeIndexService.TryCreate(options));
+            Assert.Contains("GEMINI_API_KEY", ex.Message);
+            Assert.Contains("deterministic", ex.Message);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("GEMINI_API_KEY", prevG);
+            Environment.SetEnvironmentVariable("GOOGLE_API_KEY", prevO);
+        }
     }
 }

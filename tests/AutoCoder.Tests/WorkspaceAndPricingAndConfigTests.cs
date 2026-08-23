@@ -61,7 +61,10 @@ public sealed class WorkspaceAndPricingAndConfigTests
         Assert.Equal("deepseek-v4-pro", options.Agents["default"].Costly?.Model);
         Assert.Equal("/app/runs", options.Webhooks.ArtifactsDirectory);
         Assert.True(options.Retrieval.Enabled);
-        Assert.Equal("memory", options.Retrieval.Backend);
+        Assert.Equal("qdrant", options.Retrieval.Backend);
+        Assert.Equal("gemini", options.Retrieval.Embedder);
+        Assert.Equal("gemini-embedding-001", options.Retrieval.EmbeddingModel);
+        Assert.Equal(768, options.Retrieval.EmbeddingDimensions);
     }
 
     [Fact]

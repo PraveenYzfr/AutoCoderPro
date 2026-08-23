@@ -11,8 +11,8 @@ public interface IEmbedder
 }
 
 /// <summary>
-/// Deterministic local vectors — no API key. Good enough for lexical-ish matching in tests and
-/// offline demos; production Pro should prefer OpenAI embeddings + Qdrant.
+/// Deterministic local vectors — explicit lightweight opt-in only (`embedder: deterministic`).
+/// Never selected automatically when gemini/openai is configured; that silent swap is how mocks ship.
 /// </summary>
 public sealed class DeterministicEmbedder : IEmbedder
 {
@@ -74,7 +74,7 @@ public sealed class DeterministicEmbedder : IEmbedder
     }
 }
 
-/// <summary>OpenAI-compatible embeddings API (OPENAI_API_KEY or EMBEDDING_API_KEY).</summary>
+/// <summary>OpenAI embeddings — benchmark / opt-in only. Default Pro path is Gemini.</summary>
 public sealed class OpenAiEmbedder : IEmbedder, IDisposable
 {
     private readonly HttpClient _http;
