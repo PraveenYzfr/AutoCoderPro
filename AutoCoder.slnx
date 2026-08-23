@@ -1,0 +1,11 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AutoCoder.Abstractions/AutoCoder.Abstractions.csproj" />
+    <Project Path="src/AutoCoder.Cli/AutoCoder.Cli.csproj" />
+    <Project Path="src/AutoCoder.Core/AutoCoder.Core.csproj" />
+    <Project Path="src/AutoCoder.Server/AutoCoder.Server.csproj" />
+  </Folder>
+  <Folder Name="/tests/">
+    <Project Path="tests/AutoCoder.Tests/AutoCoder.Tests.csproj" />
+  </Folder>
+</Solution>
